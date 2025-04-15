@@ -1,14 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{layouts/master :: headelement}">
 
 </head>
 <body class="sb-nav-fixed">
-<nav th:replace="~{layouts/master :: navelement}">
-</nav>
+<nav th:replace="~{layouts/master :: navelement}"></nav>
+
 <div id="layoutSidenav">
-    <div th:replace="~{layouts/master :: sidebarelement}">
-    </div>
+    <div th:replace="~{layouts/master :: sidebarelement}"></div>
     <div id="layoutSidenav_content">
         <main>
             <div class="container-fluid px-4">
@@ -82,16 +81,18 @@
             </div>
         </main>
 
-        <footer th:replace="~{layouts/master :: footerelement}">
-        </footer>
+        <footer th:replace="~{layouts/master :: footerelement}"></footer>
     </div>
 </div>
 
-<!-- JavaScript for handling AJAX requests -->
+<!-- JavaScript for handling AJAX requests and dynamic chart rendering -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
     $(document).ready(function() {
 
+        // Fetch data for total expenses, incomes, and transactions
         $.ajax({
             url: "/total-expenses",
             method: "GET",
@@ -109,206 +110,161 @@
             }
         });
 
-
-        $(document).ready(function() {
-    // Fetch Total Incomes Data
-    $.ajax({
-        url: "/total-incomes",
-        method: "GET",
-        success: function(data) {
-             $('#total-incomes').html(`
-                <div class="expense-details">
-                    <div class="income-item">
-                        <span class="label">Monthly:</span> <span class="value">$${data.monthly.toFixed(2)}</span>
-                    </div>
-                    <div class="income-item">
-                        <span class="label">Weekly:</span> <span class="value">$${data.weekly.toFixed(2)}</span>
-                    </div>
-                    <div class="income-item">
-                        <span class="label">Yearly:</span> <span class="value">$${data.yearly.toFixed(2)}</span>
-                    </div>
+        $.ajax({
+            url: "/total-incomes",
+            method: "GET",
+            success: function(data) {
+                $('#total-incomes').html(`
+                <div class="income-details">
+                    <div class="income-item"><span class="label">Monthly:</span> <span class="value">$${data.monthly.toFixed(2)}</span></div>
+                    <div class="income-item"><span class="label">Weekly:</span> <span class="value">$${data.weekly.toFixed(2)}</span></div>
+                    <div class="income-item"><span class="label">Yearly:</span> <span class="value">$${data.yearly.toFixed(2)}</span></div>
                 </div>
             `);
-        },
-        error: function(error) {
-            $('#total-incomes').html('Error fetching data');
-        }
-    });
-});
+            },
+            error: function(error) {
+                $('#total-incomes').html('Error fetching data');
+            }
+        });
 
-
-
-
-// Fetch Total Transactions Data
-    $.ajax({
-        url: "/total-transactions", // Endpoint you defined in the controller
-        method: "GET",
-        success: function(data) {
-            // Display the total transactions data in the HTML
-            $('#total-transactions').html(`
+        $.ajax({
+            url: "/total-transactions",
+            method: "GET",
+            success: function(data) {
+                $('#total-transactions').html(`
                 <div class="transaction-details">
                     <div class="transaction-item"><span class="label">Monthly:</span> <span class="value">${data.monthly}</span></div>
                     <div class="transaction-item"><span class="label">Weekly:</span> <span class="value">${data.weekly}</span></div>
                     <div class="transaction-item"><span class="label">Yearly:</span> <span class="value">${data.yearly}</span></div>
                 </div>
             `);
-        },
-        error: function(error) {
-            // If there is an error with the AJAX request, display an error message
-            $('#total-transactions').html('Error fetching data');
+            },
+            error: function(error) {
+                $('#total-transactions').html('Error fetching data');
+            }
+        });
+
+        // Define months array and initialize data arrays
+        const months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+        let expenses = Array(12).fill(0);
+        let incomes = Array(12).fill(0);
+        let transactions = Array(12).fill(0);
+
+        // Fetch monthly data for incomes, expenses, and transactions
+        $.ajax({
+            url: "/total-incomes-by-month",
+            method: "GET",
+            success: function(data) {
+                months.forEach((month, index) => {
+                    incomes[index] = data[month] || 0;
+                });
+                updateChart();  // Update chart once data is loaded
+            },
+            error: function(error) {
+                console.error("Error fetching total incomes by month:", error);
+            }
+        });
+
+        $.ajax({
+            url: "/total-expenses-by-month",
+            method: "GET",
+            success: function(data) {
+                months.forEach((month, index) => {
+                    expenses[index] = data[month] || 0;
+                });
+                updateChart();
+            },
+            error: function(error) {
+                console.error("Error fetching total expenses by month:", error);
+            }
+        });
+
+        $.ajax({
+            url: "/total-transactions-by-month",
+            method: "GET",
+            success: function(data) {
+                months.forEach((month, index) => {
+                    transactions[index] = data[month] || 0;
+                });
+                updateChart();
+            },
+            error: function(error) {
+                console.error("Error fetching total transactions by month:", error);
+            }
+        });
+
+        // Chart.js Configuration
+        const ctx = document.getElementById('transactionChart').getContext('2d');
+        const chartData = {
+            labels: months.map(m => m.charAt(0) + m.slice(1).toLowerCase()),
+            datasets: [
+                {
+                    label: 'Total Expenses',
+                    data: expenses,
+                    borderColor: 'rgb(255, 99, 132)',
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: 'Total Incomes',
+                    data: incomes,
+                    borderColor: 'rgb(75, 192, 192)',
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: 'Total Transactions',
+                    data: transactions,
+                    borderColor: 'rgb(54, 162, 235)',
+                    fill: false,
+                    tension: 0.1
+                }
+            ]
+        };
+
+        const config = {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                    },
+                    title: {
+                        display: true,
+                        text: 'Transactions, Incomes, and Expenses by Month'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Month'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Amount'
+                        }
+                    }
+                }
+            }
+        };
+
+        const transactionChart = new Chart(ctx, config);
+
+        // Update chart data after each successful AJAX call
+        function updateChart() {
+            transactionChart.data.datasets[0].data = expenses;
+            transactionChart.data.datasets[1].data = incomes;
+            transactionChart.data.datasets[2].data = transactions;
+            transactionChart.update();
         }
     });
-
-
-
-
-    });
-
-
 </script>
-
-
-
-<script>
-    $(document).ready(function() {
-      // Define months array to map data in correct order
-       const months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
-                       "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
-
-       // Variables to store data for each chart
-       let expenses = Array(12).fill(0);   // Initialize with 12 zeros for each month
-       let incomes = Array(12).fill(0);
-       let transactions = Array(12).fill(0);
-
-        // AJAX call for total incomes by month
-       $.ajax({
-           url: "/total-incomes-by-month",
-           method: "GET",
-           success: function (data) {
-               // Map income data to the months array
-               months.forEach((month, index) => {
-                   incomes[index] = data[month] || 0;  // Use 0 if month data is missing
-               });
-               updateChart();  // Update chart once data is loaded
-           },
-           error: function (error) {
-               console.error("Error fetching total incomes by month:", error);
-               $('#totalIncomes').text("Failed to load data.");
-           }
-       });
-
-       // AJAX call for total expenses by month
-       $.ajax({
-           url: "/total-expenses-by-month",
-           method: "GET",
-           success: function (data) {
-               months.forEach((month, index) => {
-                   expenses[index] = data[month] || 0;
-               });
-               updateChart();
-           },
-           error: function (error) {
-               console.error("Error fetching total expenses by month:", error);
-               $('#totalExpenses').text("Failed to load data.");
-           }
-       });
-
-        // AJAX call for total transactions by month
-       $.ajax({
-           url: "/total-transactions-by-month",
-           method: "GET",
-           success: function (data) {
-               months.forEach((month, index) => {
-                   transactions[index] = data[month] || 0;
-               });
-               updateChart();
-           },
-           error: function (error) {
-               console.error("Error fetching total transactions by month:", error);
-               $('#totalTransactions').text("Failed to load data.");
-           }
-       });
-
-
-       // Chart.js configuration
-       const ctx = document.getElementById('transactionChart').getContext('2d');
-       const data = {
-           labels: months.map(m => m.charAt(0) + m.slice(1).toLowerCase()),  // Format labels (e.g., "January")
-           datasets: [
-               {
-                   label: 'Total Expenses',
-                   data: expenses,
-                   borderColor: 'rgb(255, 99, 132)',
-                   fill: false,
-                   tension: 0.1
-               },
-               {
-                   label: 'Total Incomes',
-                   data: incomes,
-                   borderColor: 'rgb(75, 192, 192)',
-                   fill: false,
-                   tension: 0.1
-               },
-               {
-                   label: 'Total Transactions',
-                   data: transactions,
-                   borderColor: 'rgb(54, 162, 235)',
-                   fill: false,
-                   tension: 0.1
-               }
-           ]
-       };
-
-       const config = {
-           type: 'line',
-           data: data,
-           options: {
-               responsive: true,
-               plugins: {
-                   legend: {
-                       display: true,
-                   },
-                   title: {
-                       display: true,
-                       text: 'Transactions, Incomes, and Expenses by Month'
-                   }
-               },
-               scales: {
-                   x: {
-                       title: {
-                           display: true,
-                           text: 'Month'
-                       }
-                   },
-                   y: {
-                       beginAtZero: true,
-                       title: {
-                           display: true,
-                           text: 'Amount'
-                       }
-                   }
-               }
-           }
-       };
-
-       const transactionChart = new Chart(ctx, config);
-
-         // Update chart data after each successful AJAX call
-       function updateChart() {
-           transactionChart.data.datasets[0].data = expenses;
-           transactionChart.data.datasets[1].data = incomes;
-           transactionChart.data.datasets[2].data = transactions;
-           transactionChart.update();
-       }
-
-       
-
-
-
-   });
-
-</script>
-
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script src="js/scripts.js"></script>
